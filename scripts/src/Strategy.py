@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from rich.progress import track
+import yfinance as yf
 
 """
 Strategy class is the parent class for all strategies. It contains the basic
@@ -115,6 +116,24 @@ class Strategy:
 
         self.metrics = {}
 
+    def train_test_split(self, train_size: float=0.8):
+        """
+        Splits the data into train and test sets.
+
+        Args:
+            train_size (float): The size of the train set. Defaults to 0.8.
+
+        Returns:
+            None
+        """
+
+        assert type(train_size) == float
+        assert 0 < train_size < 1
+
+        split_idx = int(len(self.data) * train_size)
+        self.train_data = self.data.iloc[:split_idx]
+        self.test_data = self.data.iloc[split_idx:]
+
 
     def generate_signals(self):
         """
@@ -161,20 +180,21 @@ class Strategy:
 
         invested_idx = self.positions.loc[:, (slice(None), 'position')] != 0
         invested_idx = invested_idx.any(axis=1)
-        
         returns = self.pnl['returns'][invested_idx]
 
         # Sharpe ratio
-        self.metrics['sharpe_ratio'] = np.sqrt(len(invested_idx)) * self.pnl['pnl'].mean()/self.pnl['pnl'].std()
+        risk_free_rate = yf.download('^TNX', start=self.data.index[0], end=self.data.index[-1], progress=False)['Close'].mean().iloc[0]/100.0
+        risk_free_rate = risk_free_rate / 252.0
+        self.metrics['sharpe_ratio'] = np.sqrt(252) * (self.pnl['returns'].mean() - risk_free_rate) / self.pnl['returns'].std()
 
-        # Maximum
+        # Maximum Drawdown
         self.metrics['max_drawdown'] = 100 * (self.pnl['cash'] - self.pnl['cash'].cummax()).min() / self.pnl['cash'].cummax().max()
 
         # Yearly return
-        self.metrics['yearly_return'] = 100 * ((self.pnl['cash'].iloc[-1] / self.pnl['cash'].iloc[0]) ** (252 / len(self.data)) - 1)
+        self.metrics['yearly_return'] = 100 *(((self.pnl['cash'].iloc[-1] - self.pnl['cash'].iloc[0])/self.pnl['cash'].iloc[0] +1)**(252/len(self.positions)) - 1)
 
         # Annualized volatility
-        self.metrics['annualized_volatility'] = returns.std() * (252 ** 0.5)
+        self.metrics['annualized_volatility'] = 100 * np.sqrt(252)*returns.std()
 
         # Average return
         self.metrics['average_return'] = returns.mean()
@@ -216,6 +236,7 @@ class Strategy:
 
                 # Update cash
                 self.pnl.loc[idx, 'cash'] += self.pnl.loc[idx, 'pnl']
+                
 
         # Compute returns
         self.pnl['returns'] = self.pnl['cash'].pct_change(fill_method=None)

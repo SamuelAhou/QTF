@@ -9,24 +9,21 @@ from scripts.strategies.SMA import SMAStrategy
 
 if __name__ == '__main__':
 
-    data = yf.download('AAPL', start='2010-01-01', end='2020-01-01', progress=False)
+    data = yf.download(['PEP', 'KO'], start='2010-01-01', end='2020-01-01', progress=False)
 
     # Define the parameters for the strategies
-    # params_pairs = {'entry_threshold': 1.5, 
-    #                 'exit_threshold': 0.5, 
-    #                 'order_size': 1.0, 
-    #                 'spread_type': 'zscore'}
+    params_pairs = {'entry_threshold': 2.0, 
+                    'exit_threshold': 0.5, 
+                    'order_size': 100.0, 
+                    'spread_type': 'log-difference',
+                    'kalman_Q': 0.1,
+                    'kalman_R': 0.1}
 
-    # pairs_strategy = PairsTrading('Pairs Trading', data, params_pairs, 1.0)
+    pairs_strategy = PairsTrading('PairsTrading(PEP-KO)-Ratio', data, params_pairs, 1000.0)
 
-    # pairs_strategy.run()
-    # pairs_strategy.plot()
-
-    params_sma = {'short_window': 20,
-                    'long_window': 100,
-                    'order_size': 1.0}
+    pairs_strategy.run()
+    pairs_strategy.plot('/Users/Samuel/Documents/Projects/Algorithmic-Trading/results/PairsTrading')
     
-    sma_strategy = SMAStrategy('SMA Strategy', data, params_sma, 1.0)
-    sma_strategy.run()
-    sma_strategy.plot('/Users/Samuel/Documents/Projects/Algorithmic-Trading/results/SMA')
-    
+    print("Pairs Trading Strategy Results:")
+    for key, value in pairs_strategy.metrics.items():
+        print(f"{key}: {value}")

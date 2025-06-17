@@ -16,14 +16,19 @@ class PairsTrading(Strategy):
         assert type(params['order_size']) == float
         self.order_size = params['order_size']
 
-        assert params['spread_type'] in ['zscore', 'ratio', 'log-difference']
+        assert params['spread_type'] in ['zscore', 'ratio', 'log-difference', 'kalman']
         self.spread_type = params['spread_type']
+        if self.spread_type == 'kalman':
+            assert type(params['kalman_Q']) == float
+            self.kalman_Q = params['kalman_Q']
+            assert type(params['kalman_R']) == float
+            self.kalman_R = params['kalman_R']
 
-        self.assets = data.columns
+        self.assets = self.data.columns.levels[1]
 
     def generate_signals(self):
-        closeA = self.data[self.assets[0]].Close
-        closeB = self.data[self.assets[1]].Close
+        closeA = self.data['Close'][self.assets[0]]
+        closeB = self.data['Close'][self.assets[1]]
 
         # Filter NA
         filter_na = closeA.notna() & closeB.notna()
@@ -32,8 +37,12 @@ class PairsTrading(Strategy):
 
         # Compute the spread
         if self.spread_type == 'zscore':
-            X = sm.tools.add_constant(closeB)
-            model = sm.regression.linear_model.OLS(closeA, X)
+            #TODO: Problem: Look-ahead bias if we use the whole data
+            closeA_train, closeB_train = closeA[:int(len(closeA)*0.8)], closeB[:int(len(closeB)*0.8)]
+            closeA_test, closeB_test = closeA[int(len(closeA)*0.8):], closeB[int(len(closeB)*0.8):]
+
+            X = sm.tools.add_constant(closeB_train)
+            model = sm.regression.linear_model.OLS(closeA_train, X)
             model = model.fit()
             hedge_ratio = model.params.iloc[1]
 
@@ -41,11 +50,43 @@ class PairsTrading(Strategy):
             spread = (spread - spread.rolling(20).mean())/spread.rolling(20).std()
         elif self.spread_type == 'ratio':
             spread = closeA/closeB
+            spread = (spread - spread.rolling(20).mean())/spread.rolling(20).std()
         elif self.spread_type == 'log-difference':
             spread = np.log(closeA) - np.log(closeB)
+            spread = (spread - spread.rolling(20).mean())/spread.rolling(20).std()
+        elif self.spread_type == 'kalman':
+            n = len(closeA)
+
+            spread_prior = np.zeros(n)
+            spread_post = np.zeros(n)
+
+            beta_post = np.zeros(n)
+            P_post = np.zeros(n)
+
+            beta_prior = np.zeros(n)
+            P_prior = np.zeros(n)
+
+            for i in range(1, n):
+                # Prediction Step
+                beta_prior[i] = beta_post[i-1]
+                P_prior[i] = P_post[i-1] + self.kalman_Q
+
+                # Update Step
+                spread_prior[i] = closeA.iloc[i] - beta_prior[i]*closeB.iloc[i]
+                K = P_prior[i]*closeB.iloc[i] / (P_prior[i]*closeB.iloc[i]**2 + self.kalman_R)
+                beta_post[i] = beta_prior[i] + K * spread_prior[i]
+                P_post[i] = (1 - K*closeB.iloc[i]) * P_prior[i]
+
+                # Update the spread
+                spread_post[i] = closeA.iloc[i] - beta_post[i]*closeB.iloc[i]
+
+            spread = pd.Series(spread_post, index=closeA.index)
+            spread = (spread - spread.rolling(20).mean())/spread.rolling(20).std()
         else:
             raise ValueError('Invalid spread type')
         
+        # TODO: Problem: Why minus sign needed ? Else does opposite of the what it is supposed to do
+        spread = -spread
         self.signals['spread'] = spread
 
 
