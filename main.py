@@ -1,25 +1,66 @@
 import pandas as pd
 import numpy as np
 import yfinance as yf
+from polygon import RESTClient
 
 from scripts.src.strategy import Strategy
 from scripts.utils import *
 from scripts.strategies.PairsTrading import PairsTrading
 from scripts.strategies.SMA import SMAStrategy
 
+def get_polygon_data(ticker, start_date, end_date, api_key):
+    client = RESTClient(api_key)
+
+    aggs = []
+    for a in client.list_aggs(
+        ticker,
+        1,
+        "day",  # daily resolution; change to "minute" for higher frequency
+        start_date,
+        end_date,
+        limit=50000,
+    ):
+        aggs.append(a)
+
+    df = pd.DataFrame([{
+        "timestamp": pd.to_datetime(a.timestamp, unit='ms'),
+        "open": a.open,
+        "high": a.high,
+        "low": a.low,
+        "close": a.close,
+        "volume": a.volume,
+    } for a in aggs])
+    df.set_index("timestamp", inplace=True)
+    return df
+
 if __name__ == '__main__':
+    API_KEY = "9NWEVqR5pPtWmzrq3NUI03lPU69iUntw"  # <-- Replace this with your actual Polygon API key
+    tickers = ['AAPL', 'GOOG']
 
-    data = yf.download(['PEP', 'KO'], start='2010-01-01', end='2020-01-01', progress=False)
+    dfs = []
+    for ticker in tickers:
+        df = get_polygon_data(ticker, "2013-01-01", "2025-01-01", API_KEY)
 
-    # Define the parameters for the strategies
-    params_pairs = {'entry_threshold': 2.0, 
-                    'exit_threshold': 0.5, 
-                    'order_size': 100.0, 
-                    'spread_type': 'log-difference',
-                    'kalman_Q': 0.1,
-                    'kalman_R': 0.1}
+        df.columns = pd.MultiIndex.from_product([[col.title() for col in df.columns], [ticker]])
+        dfs.append(df)
 
-    pairs_strategy = PairsTrading('PairsTrading(PEP-KO)-Ratio', data, params_pairs, 1000.0)
+    data = pd.concat(dfs, axis=1).sort_index()
+
+    # Strategy parameters
+    params_pairs = {
+        'entry_threshold': 2.0,
+        'exit_threshold': 0.5,
+        'order_size': 100.0,
+        'spread_type': 'zscore',  # Options: 'zscore', 'ratio', 'log-difference', 'kalman'
+        'zscore_window': 20,  # Only used if spread_type is 'z
+        'kalman_Q': 0.1,
+        'kalman_R': 0.1,
+        'kalman_window': 20
+    }
+
+    #data = yf.download(['PEP', 'KO'], start='2010-01-01', end='2020-01-01', progress=False)
+
+    pairs_strategy = PairsTrading('PairsTrading(AAPL-GOOG)-Kalman2', data, params_pairs, 1000.0)
 
     pairs_strategy.run()
     pairs_strategy.plot('/Users/Samuel/Documents/Projects/Algorithmic-Trading/results/PairsTrading')

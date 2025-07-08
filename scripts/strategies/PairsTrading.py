@@ -18,11 +18,16 @@ class PairsTrading(Strategy):
 
         assert params['spread_type'] in ['zscore', 'ratio', 'log-difference', 'kalman']
         self.spread_type = params['spread_type']
+        if self.spread_type == 'zscore':
+            assert type(params['zscore_window']) == int
+            self.zscore_window = params['zscore_window']
         if self.spread_type == 'kalman':
             assert type(params['kalman_Q']) == float
             self.kalman_Q = params['kalman_Q']
             assert type(params['kalman_R']) == float
             self.kalman_R = params['kalman_R']
+            assert type(params['kalman_window']) == int
+            self.kalman_window = params['kalman_window']
 
         self.assets = self.data.columns.levels[1]
 
@@ -37,23 +42,25 @@ class PairsTrading(Strategy):
 
         # Compute the spread
         if self.spread_type == 'zscore':
-            #TODO: Problem: Look-ahead bias if we use the whole data
-            closeA_train, closeB_train = closeA[:int(len(closeA)*0.8)], closeB[:int(len(closeB)*0.8)]
-            closeA_test, closeB_test = closeA[int(len(closeA)*0.8):], closeB[int(len(closeB)*0.8):]
 
-            X = sm.tools.add_constant(closeB_train)
-            model = sm.regression.linear_model.OLS(closeA_train, X)
-            model = model.fit()
-            hedge_ratio = model.params.iloc[1]
+            if len(closeA) < self.zscore_window or len(closeB) < self.zscore_window:
+                raise ValueError('Not enough data to compute the spread')
+            
+            spread = np.zeros(len(closeA))
 
-            spread = closeA - hedge_ratio*closeB
-            spread = (spread - spread.rolling(20).mean())/spread.rolling(20).std()
-        elif self.spread_type == 'ratio':
-            spread = closeA/closeB
-            spread = (spread - spread.rolling(20).mean())/spread.rolling(20).std()
-        elif self.spread_type == 'log-difference':
-            spread = np.log(closeA) - np.log(closeB)
-            spread = (spread - spread.rolling(20).mean())/spread.rolling(20).std()
+            for i in range(self.zscore_window, len(closeA)):
+                closeA_window = closeA.iloc[:i]
+                closeB_window = closeB.iloc[:i]
+
+                X = sm.tools.add_constant(closeB_window)
+                model = sm.regression.linear_model.OLS(closeA_window, X)
+                model = model.fit()
+                hedge_ratio = model.params.iloc[1]
+                spread[i] = closeA.iloc[i] - hedge_ratio * closeB.iloc[i]
+            
+            spread = pd.Series(spread, index=closeA.index)
+            spread = (spread - spread.rolling(self.zscore_window).mean())/spread.rolling(self.zscore_window).std()
+
         elif self.spread_type == 'kalman':
             n = len(closeA)
 
@@ -81,12 +88,12 @@ class PairsTrading(Strategy):
                 spread_post[i] = closeA.iloc[i] - beta_post[i]*closeB.iloc[i]
 
             spread = pd.Series(spread_post, index=closeA.index)
-            spread = (spread - spread.rolling(20).mean())/spread.rolling(20).std()
+            spread = (spread - spread.rolling(self.kalman_window).mean())/spread.rolling(self.kalman_window).std()
         else:
             raise ValueError('Invalid spread type')
         
         # TODO: Problem: Why minus sign needed ? Else does opposite of the what it is supposed to do
-        spread = -spread
+        #spread = -spread
         self.signals['spread'] = spread
 
 
