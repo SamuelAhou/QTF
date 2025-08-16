@@ -1,4 +1,4 @@
-# Algorithmic Trading Framework in Python
+# Quantitative Trading Framework in Python
 
 This repository contains a Python framework for algorithmic trading. The framework is designed to be used for backtesting strategies. 
 
