@@ -50,11 +50,12 @@ This will download BTCUSDT data from Binance as a demonstration of the data mana
 
 QTF is built with a modular, dependency-injection pattern:
 
+
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Strategies    │    │   Backtester    │    │ Risk Manager    │
 │                 │    │                 │    │                 │
-│ • SMA           │───▶│ • Strategy      │───▶│ • Stop-Loss     │
+│ • SMA           │───▶│ • Strategy      │◀───│ • Stop-Loss     │
 │ • Pairs Trading │    │ • Data          │    │ • Position      │
 │ • Custom        │    │ • Performance   │    │ • VaR Limits    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
