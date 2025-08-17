@@ -54,9 +54,9 @@ QTF is built with a modular, dependency-injection pattern:
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Strategies    │    │   Backtester    │    │ Risk Manager    │
 │                 │    │                 │    │                 │
-│ • SMA          │───▶│ • Strategy      │───▶│ • Stop-Loss     │
-│ • Pairs Trading│    │ • Data          │    │ • Position      │
-│ • Custom       │    │ • Performance   │    │ • VaR Limits    │
+│ • SMA           │───▶│ • Strategy      │───▶│ • Stop-Loss     │
+│ • Pairs Trading │    │ • Data          │    │ • Position      │
+│ • Custom        │    │ • Performance   │    │ • VaR Limits    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
                                 ▼
