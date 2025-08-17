@@ -58,8 +58,9 @@ QTF is built with a modular, dependency-injection pattern:
 │ • Pairs Trading │    │ • Data          │    │ • Position      │
 │ • Custom        │    │ • Performance   │    │ • VaR Limits    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
+                                ▲
                                 │
-                                ▼
+                                │
                        ┌─────────────────┐
                        │ Data Provider   │
                        │                 │
