@@ -1,92 +1,193 @@
-# Algorithmic Trading Framework in Python
+# QTF - Quantitative Trading Framework
 
-This repository contains a Python framework for algorithmic trading. The framework is designed to be used for backtesting strategies. 
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-### Features 
+A comprehensive, modular framework for quantitative trading research, backtesting, and risk management. QTF provides a clean, extensible architecture for developing and testing trading strategies with built-in data management, backtesting capabilities, and flexible risk controls.
 
-The framework has the following features:
+## 🚀 Quick Start
 
-- **Data**: The framework uses historical data for backtesting. The data should be downloaded using **yfinance**.
-- **Strategies**: The framework supports multiple strategies that can be backtested.
-- **Metrics**: The framework calculates various metrics for the strategies, such as Sharpe ratio, maximum drawdown, etc.
-- **Visualization**: The framework provides visualizations for the strategies.
+### Installation
 
-### Structure
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd QTF
 
-The framework is structured as follows:
+# Install dependencies
+pip install -r requirements.txt
 
-- `data/`: Contains the data used for backtesting.
-- `scripts/src`: Contains the source code for the framework. In this directory, the following files are present:
-  - `strategy.py`: Contains the base class for strategies. All strategies inherit from this class.
-- `scripts/strategies/`: Contains strategies that can be backtested.
-- `scripts/utils/`: Contains utility functions that are used in the framework.
-
-### Usage
-
-To use the framework, follow these steps:
-
-1. Download the historical data using **yfinance**.
-2. Create a new strategy by inheriting from the `Strategy` class. For that you need to implement the `generate_signals` method that generates the signals used by the strategy. Then, implement the `generate_positions` method that defines the positions taken at each time step based on the signals.
-3. Backtest the strategy using the `run` function defined in the `Strategy` class.
-4. Visualize the results using the `plot` function defined in the `Strategy` class.
-
-You can find multiple metrics in the attribute `metrics` of the strategy object after running the backtest.
-
-### Example
-
-Here is an example of how to use the framework:
-
-```python
-
-# Import the necessary libraries
-import yfinance as yf
-from scripts.src.Strategy import Strategy
-
-# Download the data
-data = yf.download('AAPL', start='2010-01-01', end='2021-01-01')
-
-# Define a simple moving average strategy
-
-class SimpleMovingAverage(Strategy):
-
-    def __init__(self, name: str, data: pd.DataFrame, params: dict, init_cash: float = 100_000.0):
-        super().__init__(name, data, params, init_cash)
-        self.short_window = params['short_window']
-        self.long_window = params['long_window']
-        self.signals = pd.DataFrame(index=data.index)
-
-    def generate_signals(self):
-        
-        self.signals['short_mavg'] = data['Close'].rolling(window=self.short_window, min_periods=1, center=False).mean()
-        self.signals['long_mavg'] = data['Close'].rolling(window=self.long_window, min_periods=1, center=False).mean()
-
-        self.signals['signal'] = 0.0
-
-        self.signals['signal'][self.short_window:] = np.where(self.signals['short_mavg'][self.short_window:] > self.signals['long_mavg'][self.short_window:], 1.0, 0.0)
-
-
-    def generate_positions(self):
-        self.signals['positions'] = self.signals['signal'].diff()
-    
-# Backtest the strategy
-strategy = SimpleMovingAverage(data)
-
-strategy.run()
-strategy.plot()
-
+# For data management features
+pip install -r requirements_data.txt
 ```
 
-Here is a sample output from the `SMA.py` strategy (in `scripts/strategies`) with short/long MA of 20 and 100 days on Apple stock from 2010 to 2020:
+### Your First Backtest
 
+```python
+from src.Backtester import Backtester
+from strategies.SMA import SMAStrategy
 
-<img src="results/SMA/SMA%20Strategy.png" alt="drawing" width="800"/>
+# Create a simple moving average strategy
+strategy = SMAStrategy(short_window=20, long_window=100)
 
-## License and Attribution
+# Run backtest
+backtester = Backtester(strategy=strategy)
+results = backtester.run()
 
-This project is open-source.  
-If you use any part of this code in your own work, a mention or link back to this repository would be greatly appreciated.
+print(f"Total Return: {results['total_return']:.2%}")
+print(f"Sharpe Ratio: {results['sharpe_ratio']:.2f}")
+```
 
+### Download Market Data
 
+```python
+python main.py
+```
 
+This will download BTCUSDT data from Binance as a demonstration of the data management system.
 
+## 🏗️ Architecture
 
+QTF is built with a modular, dependency-injection pattern:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Strategies    │    │   Backtester    │    │ Risk Manager    │
+│                 │    │                 │    │                 │
+│ • SMA          │───▶│ • Strategy      │───▶│ • Stop-Loss     │
+│ • Pairs Trading│    │ • Data          │    │ • Position      │
+│ • Custom       │    │ • Performance   │    │ • VaR Limits    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │ Data Provider   │
+                       │                 │
+                       │ • Multi-source  │
+                       │ • Smart caching │
+                       │ • Asset-based   │
+                       └─────────────────┘
+```
+
+## 📚 Documentation
+
+### **Core Documentation**
+- **[Data Management Guide](DATA_MANAGEMENT_README.md)** - How to fetch, store, and manage market data
+- **[Risk Management Guide](README_RISK_MANAGEMENT.md)** - Comprehensive risk control system
+- **[Strategy Development](docs/STRATEGY_GUIDE.md)** - How to create custom trading strategies
+- **[API Reference](docs/API_REFERENCE.md)** - Complete function and class documentation
+
+### **Examples & Tutorials**
+- **[Quick Start Tutorial](docs/TUTORIALS/quick_start.md)** - Step-by-step beginner guide
+- **[Strategy Examples](docs/EXAMPLES/)** - Analysis of built-in strategies
+- **[Jupyter Notebooks](notebooks/)** - Interactive examples and analysis
+
+## 🎯 Key Features
+
+### **Data Management**
+- **Multi-source support**: Yahoo Finance, Binance, Alpha Vantage, and more
+- **Smart caching**: Never re-download existing data
+- **Asset-based storage**: Clean file organization by symbol and interval
+- **Intelligent merging**: Automatic data combination and validation
+
+### **Strategy Framework**
+- **Modular design**: Easy to create and test new strategies
+- **Standardized interface**: Consistent API across all strategies
+- **Performance metrics**: Comprehensive backtesting results
+- **Extensible**: Add custom indicators and signals
+
+### **Risk Management**
+- **Zero overhead by default**: No risk controls unless explicitly added
+- **Modular risk controls**: Add only what you need
+- **Professional-grade**: VaR, correlation limits, sector exposure
+- **Dependency injection**: Clean separation of concerns
+
+### **Backtesting Engine**
+- **Realistic simulation**: Transaction costs, slippage, market impact
+- **Performance analysis**: Returns, Sharpe ratio, drawdown analysis
+- **Visualization**: Charts and performance reports
+- **Export capabilities**: PDF reports and data export
+
+## 🔧 Configuration
+
+### Environment Setup
+
+```bash
+# Copy and configure environment variables
+cp config/.env.example config/.env
+
+# Edit config files
+nano config/api_config.py
+nano config/risk_config.py
+```
+
+### Data Sources
+
+Configure your preferred data providers in `config/api_config.py`:
+
+```python
+# Example configuration
+BINANCE_API_KEY = "your_api_key"
+BINANCE_SECRET_KEY = "your_secret_key"
+YAHOO_FINANCE_ENABLED = True
+ALPHA_VANTAGE_API_KEY = "your_api_key"
+```
+
+## 📊 Built-in Strategies
+
+### Simple Moving Average (SMA)
+- **File**: `strategies/SMA.py`
+- **Description**: Classic trend-following strategy using moving average crossovers
+- **Parameters**: Short and long window periods
+- **Best for**: Trending markets, momentum strategies
+
+### Pairs Trading
+- **File**: `strategies/PairsTrading.py`
+- **Description**: Statistical arbitrage using cointegrated asset pairs
+- **Parameters**: Z-score thresholds, lookback periods
+- **Best for**: Mean reversion, market-neutral strategies
+
+## 🚀 Getting Started
+
+1. **Install dependencies** (see Installation above)
+2. **Configure data sources** in `config/api_config.py`
+3. **Run the demo**: `python main.py`
+4. **Explore strategies**: Check `strategies/` directory
+5. **Create your own**: Use the strategy template in `docs/STRATEGY_GUIDE.md`
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
+
+```bash
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Run tests
+python -m pytest tests/
+
+# Run linting
+flake8 src/ strategies/
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: Check the guides above
+- **Issues**: [GitHub Issues](https://github.com/your-repo/QTF/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/your-repo/QTF/discussions)
+
+## 🙏 Acknowledgments
+
+- Built with modern Python best practices
+- Inspired by professional quantitative trading systems
+- Community-driven development and testing
+
+---
+
+**Ready to start trading?** Check out the [Quick Start Tutorial](docs/TUTORIALS/quick_start.md) or dive into [Strategy Development](docs/STRATEGY_GUIDE.md)!

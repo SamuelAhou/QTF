@@ -1,0 +1,45 @@
+# Core dependencies
+pandas>=1.5.0
+numpy>=1.21.0
+matplotlib>=3.5.0
+scipy>=1.9.0
+
+# Data handling
+yfinance>=0.2.0
+
+# Optional dependencies for enhanced functionality
+# Uncomment if you need these features
+
+# For advanced plotting and visualization
+# seaborn>=0.11.0
+# plotly>=5.0.0
+
+# For statistical analysis
+# statsmodels>=0.13.0
+
+# For machine learning strategies
+# scikit-learn>=1.1.0
+
+# For optimization
+# scipy>=1.9.0
+
+# For web-based dashboards
+# streamlit>=1.22.0
+# dash>=2.6.0
+
+# For database operations
+# sqlalchemy>=1.4.0
+# psycopg2-binary>=2.9.0
+
+# For API integrations
+# requests>=2.28.0
+# websockets>=10.0
+
+# For testing
+# pytest>=7.0.0
+# pytest-cov>=4.0.0
+
+# For development
+# black>=22.0.0
+# flake8>=5.0.0
+# mypy>=0.991

@@ -1,5 +1,5 @@
 # Ignore Data Files
 data/processed/*
 data/raw/*
-
-test.ipynb
+.env
+.DS_Store

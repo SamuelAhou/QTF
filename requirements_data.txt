@@ -1,0 +1,40 @@
+# Data Provider Dependencies
+# Core data processing
+pandas>=1.5.0
+numpy>=1.21.0
+
+# Data providers
+yfinance>=0.2.0
+python-binance>=1.0.0
+
+# Interactive Brokers (optional)
+# ib_insync>=0.9.0
+
+# Additional market data providers (optional)
+# alpha_vantage>=2.3.0
+# polygon-api-client>=1.0.0
+
+# Data storage
+pyarrow>=10.0.0  # For parquet files
+fastparquet>=0.8.0  # Alternative parquet backend
+
+# HTTP requests
+requests>=2.28.0
+
+# Date/time handling
+python-dateutil>=2.8.0
+
+# Logging and configuration
+python-dotenv>=0.19.0
+
+# Data validation
+pydantic>=1.10.0
+
+# Progress bars for long operations
+tqdm>=4.64.0
+
+# Rate limiting
+ratelimit>=2.2.0
+
+# Retry logic
+tenacity>=8.0.0
