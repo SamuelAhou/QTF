@@ -10,10 +10,20 @@ import warnings
 class Strategy:
     """Base class for trading strategies. Handles signal and position generation."""
     
-    def __init__(self, data: Dict[str, pd.DataFrame], init_cash: float = 1e6, risk_free_rate: float = 0.0, params: dict = None):
+    def __init__(self, data: Dict[str, pd.DataFrame], params: dict = None):
+        
+        if data is None:
+            raise ValueError("data cannot be None")
+        if not isinstance(data, dict):
+            raise ValueError("data must be a dictionary")
+        if not all(isinstance(df, pd.DataFrame) for df in data.values()):
+            raise ValueError("all values in data must be pandas DataFrames")
+        if not all(df.index.is_monotonic_increasing for df in data.values()):
+            raise ValueError("all DataFrames must have a monotonic increasing index")
+        if not all(df.index.is_unique for df in data.values()):
+            raise ValueError("all DataFrames must have a unique index")
+
         self.data = data
-        self.init_cash = init_cash
-        self.risk_free_rate = risk_free_rate
         self.params = params or {}
 
         self.signals = None
@@ -756,7 +766,7 @@ class RiskManager:
 class Backtester:
     """Handles backtest execution and PnL calculation with optional risk management."""
     
-    def __init__(self, strategy: Strategy, risk_manager: RiskManager = None):
+    def __init__(self, strategy: Strategy, risk_manager: RiskManager = None, params: dict = {}):
         if not isinstance(strategy, Strategy):
             raise TypeError("strategy must be a Strategy instance")
         
@@ -767,6 +777,8 @@ class Backtester:
         self.risk_manager = risk_manager or RiskManager()  # Create default if none provided
         self.pnl = None
         self.metrics = {}
+        self.init_cash = params.get('init_cash', 1e6)
+        self.risk_free_rate = params.get('risk_free_rate', 0.0)
         
         # Risk tracking
         self.risk_events = []
@@ -822,7 +834,7 @@ class Backtester:
         self.pnl = pd.DataFrame(index=idx, columns=["equity", "pnl", "returns"], dtype=float)
 
         # Initialize
-        self.pnl.loc[idx[0], "equity"] = self.strategy.init_cash
+        self.pnl.loc[idx[0], "equity"] = self.init_cash
         self.pnl.loc[idx[0], "pnl"] = 0.0
         self.pnl.loc[idx[0], "returns"] = 0.0
 
@@ -997,7 +1009,7 @@ class Backtester:
             if i > 0:
                 self.pnl.loc[t, "equity"] = self.pnl.iloc[i-1]["equity"] + daily_pnl
             else:
-                self.pnl.loc[t, "equity"] = self.strategy.init_cash + daily_pnl
+                self.pnl.loc[t, "equity"] = self.init_cash + daily_pnl
             
             # Calculate returns
             if i > 0:
@@ -1051,7 +1063,7 @@ class Reporter:
             raise RuntimeError("Backtest not run yet.")
 
         rets = self.backtester.pnl["returns"]
-        excess = rets - self.backtester.strategy.risk_free_rate / periods_per_year
+        excess = rets - self.backtester.risk_free_rate / periods_per_year
 
         mean_excess = excess.mean()
         vol = rets.std()
@@ -1089,25 +1101,46 @@ class Reporter:
         # Get asset names from positions
         assets = self.backtester.strategy.positions.columns.tolist()
         
-        # Figure 1: Asset Data with Volume and Positions
-        # Create subplots: price (candlestick), volume, positions
+        # Find the start date for plotting (first non-NaN signal value)
+        start_date = None
+        if self.backtester.strategy.signals is not None and assets:
+            for asset in assets:
+                if asset in self.backtester.strategy.signals:
+                    asset_signals = self.backtester.strategy.signals[asset]
+                    # Check any signal column for first valid value
+                    for signal_col in asset_signals.columns:
+                        first_valid_idx = asset_signals[signal_col].first_valid_index()
+                        if first_valid_idx is not None:
+                            if start_date is None or first_valid_idx < start_date:
+                                start_date = first_valid_idx
+                            break  # Found a valid signal, no need to check other columns for this asset
+        
+        # If no valid signals found, use the full data range
+        if start_date is None:
+            start_date = self.backtester.strategy.data[assets[0]].index[0] if assets else None
+        
+        # Figure 1: Asset Data with Signals and Volume
+        # Create subplots: price (candlestick), signals, volume
         fig1 = sp.make_subplots(
             rows=3, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.05,
-            row_heights=[0.5, 0.25, 0.25]  # 2:1:1 aspect ratio
+            row_heights=[0.5, 0.25, 0.25],  # 2:1:1 aspect ratio
+            specs=[[{"secondary_y": True}], [{"secondary_y": False}], [{"secondary_y": False}]]
         )
         
         # Add candlestick charts for all assets
         for asset in assets:
             asset_data = self.backtester.strategy.data[asset]
+            # Filter data from start_date onwards
+            filtered_data = asset_data[asset_data.index >= start_date]
             fig1.add_trace(
                 go.Candlestick(
-                    x=asset_data.index,
-                    open=asset_data['Open'],
-                    high=asset_data['High'],
-                    low=asset_data['Low'],
-                    close=asset_data['Close'],
+                    x=filtered_data.index,
+                    open=filtered_data['Open'],
+                    high=filtered_data['High'],
+                    low=filtered_data['Low'],
+                    close=filtered_data['Close'],
                     name=asset,
                     increasing_line_color='green',
                     decreasing_line_color='red',
@@ -1117,52 +1150,63 @@ class Reporter:
                 row=1, col=1
             )
             
-            # Add moving average signals on top of candlestick chart
+            # Add volume bars on the candlestick chart (secondary y-axis)
+            fig1.add_trace(
+                go.Bar(
+                    x=filtered_data.index,
+                    y=filtered_data['Volume'],
+                    name=asset,
+                    marker_color='blue',
+                    opacity=0.25,
+                    legendgroup='group2',
+                    legendgrouptitle_text='Volumes',
+                    yaxis='y2',
+                    hoverinfo='skip'  # Hide volume values on hover
+                ),
+                row=1, col=1,
+                secondary_y=True
+            )
+        
+            # Add moving average signals in the middle row
             if self.backtester.strategy.signals is not None and asset in self.backtester.strategy.signals:
                 asset_signals = self.backtester.strategy.signals[asset]
+                # Filter signals from start_date onwards
+                filtered_signals = asset_signals[asset_signals.index >= start_date]
                 
                 # Loop through all signal columns and plot them
-                for signal_col in asset_signals.columns:
+                for signal_col in filtered_signals.columns:
                     fig1.add_trace(
                         go.Scatter(
-                            x=asset_signals.index,
-                            y=asset_signals[signal_col],
+                            x=filtered_signals.index,
+                            y=filtered_signals[signal_col],
                             mode='lines',
                             name=f'{asset} {signal_col}',
                             line=dict(width=1.5),
                             opacity=0.8,
-                            legendgroup='group1',
-                            legendgrouptitle_text='Asset Prices'
+                            legendgroup='group3',
+                            legendgrouptitle_text='Signals'
                         ),
-                        row=1, col=1
+                        row=2, col=1
                     )
-        
-            fig1.add_trace(
-                go.Bar(
-                    x=asset_data.index,
-                    y=asset_data['Volume'],
-                    name=asset,
-                    marker_color='blue',
-                    opacity=0.7,
-                    legendgroup='group2',
-                    legendgrouptitle_text='Volumes'
-                ),
-                row=2, col=1
-            )
-        
+            
+            # Add positions in the bottom row
             if asset in self.backtester.strategy.positions.columns:
+                # Filter positions from start_date onwards
+                filtered_positions = self.backtester.strategy.positions[self.backtester.strategy.positions.index >= start_date]
                 fig1.add_trace(
                     go.Scatter(
-                        x=self.backtester.strategy.positions.index,
-                        y=self.backtester.strategy.positions[asset],
+                        x=filtered_positions.index,
+                        y=filtered_positions[asset],
                         mode='lines',
                         name=asset,
                         line=dict(width=1.5),
-                        legendgroup='group3',
+                        legendgroup='group4',
                         legendgrouptitle_text='Positions'
                     ),
                     row=3, col=1
                 )
+        
+
         
         # Update layout for Figure 1
         fig1.update_layout(
@@ -1173,7 +1217,8 @@ class Reporter:
         
         # Update y-axis labels
         fig1.update_yaxes(title_text="Price (USD)", row=1, col=1)
-        fig1.update_yaxes(title_text="Volume", row=2, col=1)
+        fig1.update_yaxes(title_text="Volume", row=1, col=1, secondary_y=True)
+        fig1.update_yaxes(title_text="Signals", row=2, col=1)
         fig1.update_yaxes(title_text="Position Size", row=3, col=1)
         fig1.update_xaxes(title_text="Date", row=3, col=1)
         
@@ -1188,15 +1233,18 @@ class Reporter:
             row_heights=[0.5, 0.25, 0.25]  # 2:1:1 aspect ratio
         )
         
-        # Portfolio equity
+        # Portfolio equity (normalized by initial value)
         equity = self.backtester.pnl["equity"]
+        # Filter equity data from start_date onwards
+        filtered_equity = equity[equity.index >= start_date]
+        normalized_equity = filtered_equity / filtered_equity.iloc[0]  # Normalize by initial value
         fig2.add_trace(
             go.Scatter(
-                x=equity.index,
-                y=equity,
+                x=normalized_equity.index,
+                y=normalized_equity,
                 mode='lines',
                 line=dict(color='blue', width=2),
-                name='Portfolio Equity',
+                name='Portfolio Equity (Normalized)',
                 legendrank=3
             ),
             row=1, col=1
@@ -1204,11 +1252,13 @@ class Reporter:
         
         # Daily PnL bars
         pnl = self.backtester.pnl["pnl"]
-        colors = ['green' if x >= 0 else 'red' for x in pnl]
+        # Filter PnL data from start_date onwards
+        filtered_pnl = pnl[pnl.index >= start_date]
+        colors = ['green' if x >= 0 else 'red' for x in filtered_pnl]
         fig2.add_trace(
             go.Bar(
-                x=pnl.index,
-                y=pnl,
+                x=filtered_pnl.index,
+                y=filtered_pnl,
                 marker_color=colors,
                 opacity=0.7,
                 name='PnL',
@@ -1221,8 +1271,8 @@ class Reporter:
         fig2.add_hline(y=0, line_dash="dash", line_color="black", opacity=0.5, row=2, col=1)
         
         # Drawdown
-        roll_max = equity.cummax()
-        drawdown = (equity / roll_max - 1.0) * 100  # Convert to percentage
+        roll_max = filtered_equity.cummax()
+        drawdown = (filtered_equity / roll_max - 1.0) * 100  # Convert to percentage
         fig2.add_trace(
             go.Scatter(
                 x=drawdown.index,
@@ -1247,7 +1297,7 @@ class Reporter:
         )
         
         # Update y-axis labels
-        fig2.update_yaxes(title_text="Portfolio Value (USD)", row=1, col=1)
+        fig2.update_yaxes(title_text="Portfolio Value (Normalized)", row=1, col=1)
         fig2.update_yaxes(title_text="PnL (USD)", row=2, col=1)
         fig2.update_yaxes(title_text="Drawdown (%)", row=3, col=1)
         fig2.update_xaxes(title_text="Date", row=3, col=1)

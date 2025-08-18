@@ -157,26 +157,9 @@ ALPHA_VANTAGE_API_KEY = "your_api_key"
 4. **Explore strategies**: Check `strategies/` directory
 5. **Create your own**: Use the strategy template in `docs/STRATEGY_GUIDE.md`
 
-## 🤝 Contributing
+<!-- ## 📄 License
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Development Setup
-
-```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Run tests
-python -m pytest tests/
-
-# Run linting
-flake8 src/ strategies/
-```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. -->
 
 ## 🆘 Support
 
@@ -184,11 +167,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Issues**: [GitHub Issues](https://github.com/your-repo/QTF/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/your-repo/QTF/discussions)
 
-## 🙏 Acknowledgments
 
-- Built with modern Python best practices
-- Inspired by professional quantitative trading systems
-- Community-driven development and testing
+
+**Using this code?** If you find this framework helpful in your projects, research, or trading, we'd appreciate a mention or citation. Consider:
+- ⭐ Starring this repository
+- 🔗 Linking back to this project in your documentation
+- 📝 Citing in academic work or publications
+- 💬 Sharing your experience with the community
+
+Your acknowledgment helps support continued development and helps others discover this tool!
+
 
 ---
 
